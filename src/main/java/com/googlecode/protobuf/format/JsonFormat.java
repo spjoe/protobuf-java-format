@@ -31,13 +31,9 @@ package com.googlecode.protobuf.format;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.nio.CharBuffer;
 import java.text.CharacterIterator;
 import java.text.StringCharacterIterator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -198,7 +194,7 @@ public class JsonFormat extends AbstractCharBasedFormatter {
 
             case BYTES: {
                 generator.print("\"");
-                generator.print(escapeBytes((ByteString) value));
+                generator.print(encodeBase64((ByteString) value));
                 generator.print("\"");
                 break;
             }
@@ -252,7 +248,7 @@ public class JsonFormat extends AbstractCharBasedFormatter {
                 if (firstValue) {firstValue = false;}
                 else {generator.print(", ");}
                 generator.print("\"");
-                generator.print(escapeBytes(value));
+                generator.print(encodeBase64(value));
                 generator.print("\"");
             }
             for (UnknownFieldSet value : field.getGroupList()) {
@@ -715,14 +711,10 @@ public class JsonFormat extends AbstractCharBasedFormatter {
                 throw parseException("String missing ending quote.");
             }
 
-            try {
-                String escaped = currentToken.substring(1, currentToken.length() - 1);
-                ByteString result = unescapeBytes(escaped);
-                nextToken();
-                return result;
-            } catch (InvalidEscapeSequence e) {
-                throw parseException(e.getMessage());
-            }
+            String escaped = currentToken.substring(1, currentToken.length() - 1);
+            ByteString result = decodeBase64(escaped);
+            nextToken();
+            return result;
         }
 
         /**
@@ -1063,59 +1055,10 @@ public class JsonFormat extends AbstractCharBasedFormatter {
     // them.
 
     /**
-     * Escapes bytes in the format used in protocol buffer text format, which is the same as the
-     * format used for C string literals. All bytes that are not printable 7-bit ASCII characters
-     * are escaped, as well as backslash, single-quote, and double-quote characters. Characters for
-     * which no defined short-hand escape sequence is defined will be escaped using 3-digit octal
-     * sequences.
+     * Encode bytes to base64.
      */
-    static String escapeBytes(ByteString input) {
-        StringBuilder builder = new StringBuilder(input.size());
-        for (int i = 0; i < input.size(); i++) {
-            byte b = input.byteAt(i);
-            switch (b) {
-                // Java does not recognize \a or \v, apparently.
-                case 0x07:
-                    builder.append("\\a");
-                    break;
-                case '\b':
-                    builder.append("\\b");
-                    break;
-                case '\f':
-                    builder.append("\\f");
-                    break;
-                case '\n':
-                    builder.append("\\n");
-                    break;
-                case '\r':
-                    builder.append("\\r");
-                    break;
-                case '\t':
-                    builder.append("\\t");
-                    break;
-                case 0x0b:
-                    builder.append("\\v");
-                    break;
-                case '\\':
-                    builder.append("\\\\");
-                    break;
-                case '\'':
-                    builder.append("\\\'");
-                    break;
-                case '"':
-                    builder.append("\\\"");
-                    break;
-                default:
-                    if (b >= 0x20) {
-                        builder.append((char) b);
-                    } else {
-						final String unicodeString = unicodeEscaped((char) b);
-						builder.append(unicodeString);
-                    }
-                    break;
-            }
-        }
-        return builder.toString();
+    static String encodeBase64(ByteString input) {
+        return Base64.getEncoder().encodeToString(input.toByteArray());
     }
 
 	static String unicodeEscaped(char ch) {
@@ -1130,107 +1073,14 @@ public class JsonFormat extends AbstractCharBasedFormatter {
 	}
 
     /**
-     * Un-escape a byte sequence as escaped using
-     * {@link #escapeBytes(com.googlecode.protobuf.format.ByteString)}. Two-digit hex escapes (starting with
-     * "\x") are also recognized.
+     * Decode bytes from base64.
      */
-    static ByteString unescapeBytes(CharSequence input) throws InvalidEscapeSequence {
-        byte[] result = new byte[input.length()];
-        int pos = 0;
-        for (int i = 0; i < input.length(); i++) {
-            char c = input.charAt(i);
-            if (c == '\\') {
-                if (i + 1 < input.length()) {
-                    ++i;
-                    c = input.charAt(i);
-                    if (isOctal(c)) {
-                        // Octal escape.
-                        int code = digitValue(c);
-                        if ((i + 1 < input.length()) && isOctal(input.charAt(i + 1))) {
-                            ++i;
-                            code = code * 8 + digitValue(input.charAt(i));
-                        }
-                        if ((i + 1 < input.length()) && isOctal(input.charAt(i + 1))) {
-                            ++i;
-                            code = code * 8 + digitValue(input.charAt(i));
-                        }
-                        result[pos++] = (byte) code;
-                    } else {
-                        switch (c) {
-                            case 'a':
-                                result[pos++] = 0x07;
-                                break;
-                            case 'b':
-                                result[pos++] = '\b';
-                                break;
-                            case 'f':
-                                result[pos++] = '\f';
-                                break;
-                            case 'n':
-                                result[pos++] = '\n';
-                                break;
-                            case 'r':
-                                result[pos++] = '\r';
-                                break;
-                            case 't':
-                                result[pos++] = '\t';
-                                break;
-                            case 'v':
-                                result[pos++] = 0x0b;
-                                break;
-                            case '\\':
-                                result[pos++] = '\\';
-                                break;
-                            case '\'':
-                                result[pos++] = '\'';
-                                break;
-                            case '"':
-                                result[pos++] = '\"';
-                                break;
-
-                            case 'x':
-                                // hex escape
-                                int code = 0;
-                                if ((i + 1 < input.length()) && isHex(input.charAt(i + 1))) {
-                                    ++i;
-                                    code = digitValue(input.charAt(i));
-                                } else {
-                                    throw new InvalidEscapeSequence("Invalid escape sequence: '\\x' with no digits");
-                                }
-                                if ((i + 1 < input.length()) && isHex(input.charAt(i + 1))) {
-                                    ++i;
-                                    code = code * 16 + digitValue(input.charAt(i));
-                                }
-                                result[pos++] = (byte) code;
-                                break;
-                            case 'u':
-                                // UTF8 escape
-                                code = (16 * 3 * digitValue(input.charAt(i+1))) +
-                                        (16 * 2 * digitValue(input.charAt(i+2))) +
-                                        (16 * digitValue(input.charAt(i+3))) +
-                                        digitValue(input.charAt(i+4));
-                                i = i+4;
-                                result[pos++] = (byte) code;
-                                break;
-
-                            default:
-                                throw new InvalidEscapeSequence("Invalid escape sequence: '\\" + c
-                                                                + "'");
-                        }
-                    }
-                } else {
-                    throw new InvalidEscapeSequence("Invalid escape sequence: '\\' at end of string.");
-                }
-            } else {
-                result[pos++] = (byte) c;
-            }
-        }
-
-        return ByteString.copyFrom(result, 0, pos);
+    static ByteString decodeBase64(CharSequence input) {
+        return ByteString.copyFrom(Base64.getDecoder().decode(input.toString()));
     }
 
     /**
-     * Thrown by {@link JsonFormat#unescapeBytes} and {@link JsonFormat#unescapeText} when an
+     * Thrown by {@link JsonFormat#unescapeText} when an
      * invalid escape sequence is seen.
      */
     static class InvalidEscapeSequence extends IOException {

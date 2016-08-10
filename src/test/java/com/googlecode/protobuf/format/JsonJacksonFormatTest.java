@@ -4,8 +4,8 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.ExtensionRegistry;
-import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import org.testng.reporters.Files;
 import protobuf_unittest.UnittestProto;
@@ -15,7 +15,6 @@ import java.math.BigInteger;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.testng.Assert.*;
 
 /**
  * @author scr on 10/13/15.
@@ -53,6 +52,7 @@ public class JsonJacksonFormatTest {
                 .setOptionalFixed32((int) maxIntAsLong)
                 .setOptionalUint64(maxLongAsBigInt.longValue())
                 .setOptionalFixed64(maxLongAsBigInt.longValue())
+                .setOptionalBytes(ByteString.copyFrom(new byte[] { 1, 22, 11, 33, 44, 55, 66, 77, 88, 99, 111}))
                 .build(), jsonGenerator);
         jsonGenerator.close();
         assertThat(writer.toString(), is(Files.readFile(JsonJacksonFormatTest.class.getResourceAsStream(

@@ -475,7 +475,7 @@ public final class HtmlFormat extends AbstractCharBasedFormatter {
     }
 
     /**
-     * Thrown by {@link JsonFormat#unescapeBytes} and {@link JsonFormat#unescapeText} when an
+     * Thrown by {@link HtmlFormat#unescapeBytes} and {@link HtmlFormat#unescapeText} when an
      * invalid escape sequence is seen.
      */
     static class InvalidEscapeSequence extends IOException {

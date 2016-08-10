@@ -9,11 +9,8 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import org.testng.reporters.Files;
 import protobuf_unittest.UnittestProto;
-import sun.nio.cs.StandardCharsets;
 
 import java.io.IOException;
-import java.io.StringBufferInputStream;
-import java.nio.charset.Charset;
 import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -40,6 +37,7 @@ public class JsonFormatTest {
                         UnittestProto.TestAllTypes.newBuilder()
                                 .addAllRepeatedBool(Arrays.asList(true, false, true))
                                 .setOptionalForeignEnum(UnittestProto.ForeignEnum.FOREIGN_FOO)
+                                .setOptionalBytes(ByteString.copyFrom(new byte[] { 1, 22, 11, 33, 44, 55, 66, 77, 88, 99, 111}))
                                 .build(),
                         JSON_FORMATTER,
                         getExpected("test1.json")},
